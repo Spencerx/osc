@@ -686,6 +686,10 @@ class GitStore(LocalGitStore):
         else:
             git.init(initial_branch=initial_branch)
 
+        # NOTE: init() should be a classmethod
+        # we need to initialize Git() after initializing the repo again to set topdir and git_dir properly
+        git = gitea_api.Git(dest)
+
         # merge .gitattributes
         fn = ".gitattributes"
         other_path = os.path.join(template_dir, fn)

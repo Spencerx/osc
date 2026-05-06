@@ -72,8 +72,53 @@ class Git:
 
         return new_url
 
+    @classmethod
+    def detect_git(cls, path: str) -> Optional[Tuple[bool, str, str]]:
+        """
+        Detect git repo based on given ``path``.
+        Return (is_bare, git_dir, top_dir).
+        """
+
+        if not os.path.isdir(path):
+            # subprocess.run() would fail with FileNotFoundError or NotADirectoryError
+            return None
+
+        cmd = ["git", "rev-parse", "--is-bare-repository", "--is-inside-git-dir", "--absolute-git-dir", "--show-cdup"]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", check=False, cwd=path)
+
+        if proc.returncode != 0:
+            return None
+
+        lines = proc.stdout.splitlines()
+        if len(lines) < 3:
+            return None
+
+        is_bare = lines[0] == "true"
+        is_inside_git_dir = lines[1] == "true"
+        git_dir = lines[2]
+
+        if is_bare:
+            # in bare repo, top dir and git dir are the same
+            top_dir = git_dir
+        else:
+            if is_inside_git_dir:
+                top_dir = os.path.dirname(git_dir)
+            else:
+                # in non-bare repo, the 4th line is the relative path to root
+                cdup = lines[3] if len(lines) > 3 else ""
+                top_dir = os.path.abspath(os.path.join(path, cdup))
+
+        return is_bare, git_dir, top_dir
+
     def __init__(self, workdir):
         self.abspath = os.path.abspath(workdir)
+        self.is_bare = None
+        self.git_dir = None
+        self.topdir = None
+
+        values = self.detect_git(self.abspath)
+        if values:
+            self.is_bare, self.git_dir, self.topdir = values
 
     def _run_git(self, args: List[str], use_topdir: bool = False, mute_stderr: bool = False) -> str:
         cwd = self.topdir if use_topdir else self.abspath
@@ -81,31 +126,6 @@ class Git:
         if mute_stderr:
             return subprocess.check_output(["git"] + args, encoding="utf-8", cwd=cwd, stderr=subprocess.DEVNULL).strip()
         return subprocess.check_output(["git"] + args, encoding="utf-8", cwd=cwd).strip()
-
-    @property
-    def topdir(self) -> Optional[str]:
-        """
-        A custom implementation to `git rev-parse --show-toplevel` to avoid executing git which is sometimes unnecessary expensive.
-        """
-        path = self.abspath
-        while path:
-            if os.path.exists(os.path.join(path, ".git")):
-                break
-
-            path, dirname = os.path.split(path)
-
-            if (path, dirname) == ("/", ""):
-                # no git repo found
-                return None
-
-        return path
-
-    @property
-    def git_dir(self) -> Optional[str]:
-        try:
-            return self._run_git(["rev-parse", "--git-dir"])
-        except subprocess.CalledProcessError:
-            return None
 
     def init(self, *, initial_branch: Optional[str] = None, quiet: bool = True, mute_stderr: bool = False):
         cmd = ["init", "--object-format=sha256"]
