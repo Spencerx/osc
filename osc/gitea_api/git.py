@@ -457,6 +457,40 @@ class Git:
                 cmd += [branch]
         self._run_git(cmd)
 
+    def ls_tree(self, ref: str = "HEAD") -> List[Dict]:
+        regex = re.compile(r"^(?P<mode>[0-9]+) (?P<object_type>[a-z]+) (?P<commit>[a-f0-9]+) +(?P<size>[\d-]+)\t+(?P<path>.+)$")
+        lines = self._run_git(["ls-tree", "-r", "--long", ref]).splitlines()
+
+        # map mode to a human readable file type
+        file_types = {
+            "040000": "directory",
+            "100644": "file",
+            "100755": "file",
+            "120000": "symlink",
+            "160000": "submodule",
+        }
+
+        result = []
+        for line in lines:
+            match = regex.match(line)
+            if not match:
+                continue
+
+            data = match.groupdict()
+
+            # add human readable file type
+            data["file_type"] = file_types.get(data["mode"], None)
+
+            # convert size to int
+            if data["size"] == "-":
+                data["size"] = None
+            else:
+                data["size"] = int(data["size"])
+
+            result.append(data)
+
+        return result
+
     def ls_files(self, ref: str = "HEAD", suffixes: Optional[List[str]] = None) -> Dict[str, str]:
         out = self._run_git(["ls-tree", "-r", "--format=%(objectname) %(path)", ref])
         regex = re.compile(r"^(?P<checksum>[0-9a-f]+) (?P<path>.*)$")
