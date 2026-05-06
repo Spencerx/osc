@@ -557,14 +557,14 @@ class Git:
 
     # SUBMODULES
 
-    def get_submodules(self) -> dict:
+    def get_submodules(self, ref: str = "") -> dict:
         SUBMODULE_RE = re.compile(r"^submodule\.(?P<submodule>[^=]*)\.(?P<key>[^\.=]*)=(?P<value>.*)$")
-        STATUS_RE = re.compile(r"^(?P<status>.)(?P<commit>[a-f0-9]+) (?P<submodule>[^ ]+).*$")
 
+        ref = ref or "HEAD"
         result = {}
 
         try:
-            lines = self._run_git(["config", "--blob", "HEAD:.gitmodules", "--list"], mute_stderr=True).splitlines()
+            lines = self._run_git(["config", "--blob", f"{ref}:.gitmodules", "--list"], mute_stderr=True).splitlines()
         except subprocess.CalledProcessError:
             # .gitmodules file is missing
             return {}
@@ -581,22 +581,35 @@ class Git:
             submodule_entry = result.setdefault(submodule, {})
             submodule_entry[key] = value
 
-        lines = self._run_git(["submodule", "status"], use_topdir=True).splitlines()
+        if self.is_bare or ref:
+            # querying a bare git repo or a specified ref
+            submodules = self.ls_tree(ref)
+            submodules = [i for i in submodules if i["file_type"] == "submodule"]
+            for i in submodules:
+                if i["file_type"] != "submodule":
+                    continue
+                submodule = i["path"]
+                result[submodule]["commit"] = i["commit"]
+                result[submodule]["status"] = " "
 
-        for line in lines:
-            match = STATUS_RE.match(line)
-            if not match:
-                continue
-            submodule = match.groupdict()["submodule"]
-            commit = match.groupdict()["commit"]
-            status = match.groupdict()["status"]
-            result[submodule]["commit"] = commit
-            result[submodule]["status"] = status
+        else:
+            # querying working tree
+            STATUS_RE = re.compile(r"^(?P<status>.)(?P<commit>[a-f0-9]+) (?P<submodule>[^ ]+)\s*(\((?P<description>.*)\))?$")
+            lines = self._run_git(["submodule", "status"], use_topdir=True).splitlines()
+            for line in lines:
+                match = STATUS_RE.match(line)
+                if not match:
+                    continue
+                submodule = match.groupdict()["submodule"]
+                commit = match.groupdict()["commit"]
+                status = match.groupdict()["status"]
+                result[submodule]["commit"] = commit
+                result[submodule]["status"] = status
 
         remote_url = self.get_remote_url()
         for submodule_entry in result.values():
             url = submodule_entry["url"]
-            if not url.startswith("../../"):
+            if not url.startswith("../"):
                 submodule_entry["clone_url"] = url
                 continue
  
