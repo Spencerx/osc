@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import sys
 import urllib
 from typing import Dict
 from typing import Iterator
@@ -71,6 +72,25 @@ class Git:
             raise ValueError(f"URL must not contain relative path: {new_url}")
 
         return new_url
+
+    @staticmethod
+    def parse_githook_stdin() -> Iterator[Tuple[str, str, str]]:
+        """
+        Returns [(old_rev, new_rev, ref_name)] from stdin.
+        Standard for pre-receive and post-receive hooks.
+        """
+        result = []
+        for line in sys.stdin:
+            parts = line.split()
+            if len(parts) != 3:
+                raise RuntimeError(f"Unexpected line in githook stdin: {line}")
+            result.append(parts)
+        return result
+
+    @staticmethod
+    def is_null_rev(rev: str) -> bool:
+        """Check if a revision is the null revision (all zeros)."""
+        return not rev or rev.strip("0") == ""
 
     @classmethod
     def detect_git(cls, path: str) -> Optional[Tuple[bool, str, str]]:
@@ -620,3 +640,28 @@ class Git:
             submodule_entry["repo"] = repo
 
         return result
+
+    # COMMITS
+    def get_commit_range(self, old_rev: str, new_rev: str, *, not_all: bool = False) -> List[str]:
+        """
+        Returns a list of commit SHAs in old_rev..new_rev range.
+        This is frequently used in git hooks.
+
+        :param not_all: Add --not --all parameters to skip all commits that are part of any other branch.
+        """
+        if self.is_null_rev(new_rev):
+            # branch deletion
+            return []
+
+        if self.is_null_rev(old_rev):
+            # new branch
+            args = ["rev-list", new_rev]
+        else:
+            # branch update
+            args = ["rev-list", f"{old_rev}..{new_rev}"]
+
+        if not_all:
+            args += ["--not", "--all"]
+
+        output = self._run_git(args)
+        return output.splitlines() if output else []
