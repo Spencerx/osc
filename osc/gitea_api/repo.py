@@ -193,6 +193,8 @@ class Repo(GiteaModel):
         if reference or reference_if_able:
             # we want to make the newly cloned repo to be independent, this stops borrowing the objects
             cmd += ["--dissociate"]
+            # workaround for https://lore.kernel.org/git/6ae85515-9373-4c9e-90d2-5e4176590c5b@suse.com/T/#u
+            cmd += ["-c", "core.commitGraph=false"]
 
         if depth:
             cmd += ["--depth", str(depth)]
