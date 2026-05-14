@@ -111,10 +111,11 @@ class PullRequest(GiteaModel):
     @classmethod
     def remove_pr_references(cls, text: str, pr_id_list: List[Tuple[str, str, int]]) -> str:
         # HACK: reverse matches so we can modify the text from end without breaking any indexes
+        pr_id_list = [(owner.lower(), repo.lower(), number) for owner, repo, number in pr_id_list]
         for match in reversed(list(re.finditer(r"^PR: *(.*)$", text, re.M))):
             try:
-                pr_id = PullRequest.split_id(match.group(1))
-                if pr_id not in pr_id_list:
+                owner, repo, number = PullRequest.split_id(match.group(1))
+                if (owner.lower(), repo.lower(), number) not in pr_id_list:
                     continue
             except ValueError:
                 continue

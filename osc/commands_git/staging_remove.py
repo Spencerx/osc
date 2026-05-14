@@ -53,7 +53,7 @@ class StagingRemoveCommand(osc.commandline_git.GitObsCommand):
             refs = [(owner.lower(), repo.lower(), number) for owner, repo, number in refs]
             missing_refs = []
             for owner, repo, number in args.pr_list:
-                if (owner, repo, number) not in refs:
+                if (owner.lower(), repo.lower(), number) not in refs:
                     missing_refs.append(f"{owner}/{repo}#{number}")
             if missing_refs:
                 msg = f"The following pull requests are not referenced in the project pull request: {', '.join(missing_refs)}"
