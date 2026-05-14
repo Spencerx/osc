@@ -176,7 +176,10 @@ class Repo(GiteaModel):
             ]
 
         if ssh_args:
-            env["GIT_SSH_COMMAND"] = f"ssh {' '.join(ssh_args)}"
+            # create a new GIT_SSH_COMMAND or append args to the existing
+            if "GIT_SSH_COMMAND" not in env:
+                env["GIT_SSH_COMMAND"] = "ssh"
+            env["GIT_SSH_COMMAND"] += f" {' '.join(ssh_args)}"
 
         # clone
         cmd = ["git", "clone", clone_url, directory]
@@ -221,7 +224,7 @@ class Repo(GiteaModel):
 
         # store used ssh args (GIT_SSH_COMMAND) in the local git config
         # to allow seamlessly running ``git push`` and other commands
-        if ssh_args:
+        if "GIT_SSH_COMMAND" in env:
             cmd = [
                 "git",
                 "-C",
@@ -278,6 +281,7 @@ class Repo(GiteaModel):
                 conn,
                 owner,
                 repo,
+                branch=branch,
                 directory=directory,
                 add_remotes=True,
                 cache_directory=cache_directory,
