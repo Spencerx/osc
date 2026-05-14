@@ -186,9 +186,14 @@ class PullRequestCreateCommand(osc.commandline_git.GitObsCommand):
                         target_repo = parent.repo
                         break
         else:
-            # remote git repo - target
-            target_owner = source_repo_obj.parent_obj.owner
-            target_repo = source_repo_obj.parent_obj.repo
+            if source_repo_obj.parent_obj:
+                # we're creating the PR in source repo's parent
+                target_owner = source_repo_obj.parent_obj.owner
+                target_repo = source_repo_obj.parent_obj.repo
+            else:
+                # there's no parent, we're creating PR directly in the source repo
+                target_owner = source_owner
+                target_repo = source_repo
 
         source_fork_root = gitea_api.Repo.get_fork_tree_root(self.gitea_conn, source_owner, source_repo)
         target_fork_root = None
