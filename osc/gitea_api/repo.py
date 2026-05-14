@@ -281,6 +281,7 @@ class Repo(GiteaModel):
                 conn,
                 owner,
                 repo,
+                branch=branch,
                 directory=directory,
                 add_remotes=True,
                 cache_directory=cache_directory,
